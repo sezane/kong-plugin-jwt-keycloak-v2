@@ -346,6 +346,9 @@ local function do_authentication(conf)
   local token_type = type(token)
   if token_type ~= "string" then
     if token_type == "nil" then
+      if conf.optional then
+        return true
+      end
       return false, { status = 401, message = "Unauthorized" }
     elseif token_type == "table" then
       return false, { status = 401, message = "Multiple tokens provided" }

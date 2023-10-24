@@ -33,11 +33,11 @@ local schema = {
               },
               default = { "exp" },
            }, },
-          { anonymous = { 
+          { anonymous = {
               -- description = "An optional string (consumer UUID or username) value to use as an �anonymous� consumer if authentication fails.",
               type = "string"
           }, },
-          { run_on_preflight = { 
+          { run_on_preflight = {
               -- description = "A boolean value that indicates whether the plugin should run (and try to authenticate) on OPTIONS preflight requests. If set to false, then OPTIONS requests will always be allowed.",
               type = "boolean",
               required = true,
@@ -60,7 +60,7 @@ local schema = {
           { allowed_iss = { type = "set", elements = { type = "string" }, required = true }, },
           { iss_key_grace_period = { type = "number", default = 10, between = { 1, 60 }, }, },
           { well_known_template = { type = "string", default = "%s/.well-known/openid-configuration" }, },
-          
+
           { scope = { type = "set", elements = { type = "string" }, default = nil }, },
           { roles = { type = "set", elements = { type = "string" }, default = nil }, },
           { realm_roles = { type = "set", elements = { type = "string" }, default = nil }, },
@@ -71,6 +71,7 @@ local schema = {
           { consumer_match_claim_custom_id = { type = "boolean", default = false }, },
           { consumer_match_ignore_not_found = { type = "boolean", default = false }, },
           { cafile = { type = "string" }, },
+          { optional = { type = "boolean", default = false }, },
         },
       },
     },
