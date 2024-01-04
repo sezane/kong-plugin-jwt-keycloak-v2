@@ -56,6 +56,19 @@ local function custom_helper_table_to_string(tbl)
   return result
 end
 
+local function base64_decode(input)
+  local remainder = #input % 4
+
+  if remainder > 0 then
+    local padlen = 4 - remainder
+    input = input .. rep("=", padlen)
+  end
+
+  input = input:gsub("-", "+"):gsub("_", "/")
+
+  return ngx.decode_base64(input)
+end
+
 -------------------------------------------------------------------------------
 -- custom helper function of the extended plugin "jwt-keycloak"
 -- --> this is not contained in the official "jwt" pluging
@@ -69,7 +82,7 @@ local function custom_helper_issuer_get_keys(well_known_endpoint, cafile)
 
   local decoded_keys = {}
   for i, key in ipairs(keys) do
-      decoded_keys[i] = jwt_decoder:base64_decode(key)
+      decoded_keys[i] = base64_decode(key)
   end
 
   kong.log.debug('Number of keys retrieved: ' .. table.getn(decoded_keys))
