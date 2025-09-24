@@ -23,7 +23,7 @@ end
 kong.log.debug('JWT_KEYCLOAK_PRIORITY: ' .. priority)
 
 local JwtKeycloakHandler = {
-  VERSION = kong_meta.version,
+  VERSION = string.match(kong_meta.version, "^%d+%.%d+%.%d+"),
   PRIORITY = priority,
 }
 
