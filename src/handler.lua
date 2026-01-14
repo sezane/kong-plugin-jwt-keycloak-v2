@@ -23,7 +23,7 @@ end
 kong.log.debug('JWT_KEYCLOAK_PRIORITY: ' .. priority)
 
 local JwtKeycloakHandler = {
-  VERSION = kong_meta.version,
+  VERSION = string.match(kong_meta.version, "^%d+%.%d+%.%d+"),
   PRIORITY = priority,
 }
 
@@ -32,28 +32,25 @@ local JwtKeycloakHandler = {
 -- --> this is not contained in the official "jwt" pluging
 -------------------------------------------------------------------------------
 local function custom_helper_table_to_string(tbl)
-  local result = ""
+  local parts = {}
   for k, v in pairs(tbl) do
+      local part = ""
       -- Check the key type (ignore any numerical keys - assume its an array)
       if type(k) == "string" then
-          result = result.."[\""..k.."\"]".."="
+          part = "[\"" .. k .. "\"]="
       end
 
       -- Check the value type
       if type(v) == "table" then
-          result = result..custom_helper_table_to_string(v)
+          part = part .. custom_helper_table_to_string(v)
       elseif type(v) == "boolean" then
-          result = result..tostring(v)
+          part = part .. tostring(v)
       else
-          result = result.."\""..v.."\""
+          part = part .. "\"" .. v .. "\""
       end
-      result = result..","
+      parts[#parts + 1] = part
   end
-  -- Remove leading commas from the result
-  if result ~= "" then
-      result = result:sub(1, result:len()-1)
-  end
-  return result
+  return table.concat(parts, ",")
 end
 
 local function base64_decode(input)
@@ -85,7 +82,7 @@ local function custom_helper_issuer_get_keys(well_known_endpoint, cafile)
       decoded_keys[i] = base64_decode(key)
   end
 
-  kong.log.debug('Number of keys retrieved: ' .. table.getn(decoded_keys))
+  kong.log.debug('Number of keys retrieved: ' .. #decoded_keys)
   return {
       keys = decoded_keys,
       updated_at = socket.gettime(),
@@ -296,7 +293,7 @@ local function set_consumer(consumer, credential, token)
     set_header(constants.HEADERS.ANONYMOUS, true)
   end
 
-  ngx.ctx.authenticated_jwt_token = token  -- backward compatibilty only
+  ngx.ctx.authenticated_jwt_token = token  -- backward compatibility only
   kong.ctx.shared.authenticated_jwt_token = token -- TODO: wrap in a PDK function?
 end
 
@@ -437,7 +434,11 @@ local function do_authentication(conf)
   end
 
   if ok then
-    kong.ctx.shared.jwt_keycloak_token = jwt
+    -- Store only claims and header to avoid keeping the full jwt_decoder object in memory
+    kong.ctx.shared.jwt_keycloak_token = {
+      claims = jwt.claims,
+      header = jwt.header
+    }
     return true
   end
 
