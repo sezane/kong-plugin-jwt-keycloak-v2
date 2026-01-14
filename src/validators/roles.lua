@@ -7,17 +7,19 @@ local function validate_client_roles(allowed_client_roles, jwt_claims)
         return nil, "Missing required resource_access claim"
     end
 
+    -- Build a set of allowed client:role pairs for O(1) lookup
+    local allowed_set = {}
     for _, allowed_client_role in pairs(allowed_client_roles) do
-        for curr_allowed_client, curr_allowed_role in string.gmatch(allowed_client_role, "(%S+):(%S+)") do
-            for claim_client, claim_client_roles in pairs(jwt_claims.resource_access) do
-                if curr_allowed_client == claim_client then
-                    for _, curr_claim_client_roles in pairs(claim_client_roles) do
-                        for _, curr_claim_client_role in pairs(curr_claim_client_roles) do
-                            if curr_claim_client_role == curr_allowed_role then
-                                return true
-                            end
-                        end
-                    end
+        allowed_set[allowed_client_role] = true
+    end
+
+    -- Check if any claim client:role is in the allowed set
+    for claim_client, claim_client_roles in pairs(jwt_claims.resource_access) do
+        for _, curr_claim_client_roles in pairs(claim_client_roles) do
+            for _, curr_claim_client_role in pairs(curr_claim_client_roles) do
+                local client_role_key = claim_client .. ":" .. curr_claim_client_role
+                if allowed_set[client_role_key] then
+                    return true
                 end
             end
         end
@@ -52,11 +54,16 @@ local function validate_realm_roles(allowed_realm_roles, jwt_claims)
         return nil, "Missing required realm_access.roles claim"
     end
 
+    -- Build a set of allowed roles for O(1) lookup
+    local allowed_set = {}
+    for _, role in pairs(allowed_realm_roles) do
+        allowed_set[role] = true
+    end
+
+    -- Check if any claim role is in the allowed set
     for _, curr_claim_role in pairs(jwt_claims.realm_access.roles) do
-        for _, curr_allowed_role in pairs(allowed_realm_roles) do
-            if curr_claim_role == curr_allowed_role then
-                return true
-            end
+        if allowed_set[curr_claim_role] then
+            return true
         end
     end
 
