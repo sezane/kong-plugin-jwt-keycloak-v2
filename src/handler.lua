@@ -82,7 +82,7 @@ local function custom_helper_issuer_get_keys(well_known_endpoint, cafile)
       decoded_keys[i] = base64_decode(key)
   end
 
-  kong.log.debug('Number of keys retrieved: ' .. table.getn(decoded_keys))
+  kong.log.debug('Number of keys retrieved: ' .. #decoded_keys)
   return {
       keys = decoded_keys,
       updated_at = socket.gettime(),
