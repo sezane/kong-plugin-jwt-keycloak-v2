@@ -296,7 +296,7 @@ local function set_consumer(consumer, credential, token)
     set_header(constants.HEADERS.ANONYMOUS, true)
   end
 
-  ngx.ctx.authenticated_jwt_token = token  -- backward compatibilty only
+  ngx.ctx.authenticated_jwt_token = token  -- backward compatibility only
   kong.ctx.shared.authenticated_jwt_token = token -- TODO: wrap in a PDK function?
 end
 
@@ -437,7 +437,11 @@ local function do_authentication(conf)
   end
 
   if ok then
-    kong.ctx.shared.jwt_keycloak_token = jwt
+    -- Store only claims and header to avoid keeping the full jwt_decoder object in memory
+    kong.ctx.shared.jwt_keycloak_token = {
+      claims = jwt.claims,
+      header = jwt.header
+    }
     return true
   end
 
