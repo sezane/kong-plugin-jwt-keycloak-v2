@@ -32,28 +32,25 @@ local JwtKeycloakHandler = {
 -- --> this is not contained in the official "jwt" pluging
 -------------------------------------------------------------------------------
 local function custom_helper_table_to_string(tbl)
-  local result = ""
+  local parts = {}
   for k, v in pairs(tbl) do
+      local part = ""
       -- Check the key type (ignore any numerical keys - assume its an array)
       if type(k) == "string" then
-          result = result.."[\""..k.."\"]".."="
+          part = "[\"" .. k .. "\"]="
       end
 
       -- Check the value type
       if type(v) == "table" then
-          result = result..custom_helper_table_to_string(v)
+          part = part .. custom_helper_table_to_string(v)
       elseif type(v) == "boolean" then
-          result = result..tostring(v)
+          part = part .. tostring(v)
       else
-          result = result.."\""..v.."\""
+          part = part .. "\"" .. v .. "\""
       end
-      result = result..","
+      parts[#parts + 1] = part
   end
-  -- Remove leading commas from the result
-  if result ~= "" then
-      result = result:sub(1, result:len()-1)
-  end
-  return result
+  return table.concat(parts, ",")
 end
 
 local function base64_decode(input)
