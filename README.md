@@ -251,3 +251,34 @@ make kong-log # For proxy logs
 make kong-err-proxy # For proxy error logs
 make kong-err-admin # For admin error logs
 ```
+
+When Kong runs with debug logging enabled, cache accesses are logged in the proxy error log with a stable format:
+
+```text
+cache event=hit name=<cache_name> key=<cache_key> ttl=<seconds>
+cache event=miss name=<cache_name> key=<cache_key>
+```
+
+Extract all cache events:
+
+```bash
+make kong-err-proxy | grep 'cache event='
+```
+
+Aggregate hit/miss statistics by cache name:
+
+```bash
+make kong-err-proxy | \
+  grep 'cache event=' | \
+  sed -n 's/.*cache event=\([^ ]*\) name=\([^ ]*\) key=.*/\2 \1/p' | \
+  sort | uniq -c
+```
+
+Aggregate hit/miss statistics by cache key:
+
+```bash
+make kong-err-proxy | \
+  grep 'cache event=' | \
+  sed -n 's/.*cache event=\([^ ]*\) name=\([^ ]*\) key=\([^ ]*\).*/\2 \1 \3/p' | \
+  sort | uniq -c
+```
