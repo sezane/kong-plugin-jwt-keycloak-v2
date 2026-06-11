@@ -66,12 +66,24 @@ local function base64_decode(input)
   return ngx.decode_base64(input)
 end
 
+local function log_cache_hit(cache_name, cache_key)
+  local value, err, ttl = kong.cache:probe(cache_key)
+  if err then
+    kong.log.err("Failed to probe cache " .. cache_name .. " for key " .. cache_key .. ": " .. err)
+    return
+  end
+
+  if value ~= nil then
+    kong.log.debug("cache event=hit name=" .. cache_name .. " key=" .. cache_key .. " ttl=" .. tostring(ttl))
+  end
+end
+
 -------------------------------------------------------------------------------
 -- custom helper function of the extended plugin "jwt-keycloak"
 -- --> this is not contained in the official "jwt" pluging
 -------------------------------------------------------------------------------
-local function custom_helper_issuer_get_keys(well_known_endpoint, cafile)
-  kong.log.debug('Getting public keys from token issuer')
+local function custom_helper_issuer_get_keys(issuer_cache_key, well_known_endpoint, cafile)
+  kong.log.debug("cache event=miss name=issuer_keys key=" .. issuer_cache_key)
   local keys, err = keycloak_keys.get_issuer_keys(well_known_endpoint, cafile)
   if err then
       return nil, err
@@ -102,7 +114,8 @@ local function custom_validate_token_signature(conf, jwt, second_call)
 
   local well_known_endpoint = keycloak_keys.get_wellknown_endpoint(conf.well_known_template, jwt.claims.iss)
   -- Retrieve public keys
-  local public_keys, err = kong.cache:get(issuer_cache_key, nil, custom_helper_issuer_get_keys, well_known_endpoint, conf.cafile)
+  log_cache_hit("issuer_keys", issuer_cache_key)
+  local public_keys, err = kong.cache:get(issuer_cache_key, nil, custom_helper_issuer_get_keys, issuer_cache_key, well_known_endpoint, conf.cafile)
 
   if not public_keys then
       if err then
@@ -306,12 +319,23 @@ end
 -- of consumer id from the token against the kong user object in the config
 -- in a very configurable way.
 -------------------------------------------------------------------------------
-local function custom_load_consumer_by_custom_id(custom_id)
+local function custom_load_consumer_by_custom_id(consumer_cache_key, custom_id)
+  kong.log.debug("cache event=miss name=consumer_custom_id key=" .. consumer_cache_key)
   local result, err = kong.db.consumers:select_by_custom_id(custom_id)
   if not result then
       return nil, err
   end
   return result
+end
+
+local function custom_load_consumer_by_id(consumer_cache_key, consumer_id, search_by_username)
+  kong.log.debug("cache event=miss name=consumer_id key=" .. consumer_cache_key)
+  return kong.client.load_consumer(consumer_id, search_by_username)
+end
+
+local function custom_load_anonymous_consumer(consumer_cache_key, consumer_id, search_by_username)
+  kong.log.debug("cache event=miss name=anonymous_consumer key=" .. consumer_cache_key)
+  return kong.client.load_consumer(consumer_id, search_by_username)
 end
 
 local function custom_match_consumer(conf, jwt)
@@ -320,10 +344,12 @@ local function custom_match_consumer(conf, jwt)
 
   if conf.consumer_match_claim_custom_id then
       local consumer_cache_key = get_consumer_custom_id_cache_key(consumer_id)
-      consumer, err = kong.cache:get(consumer_cache_key, nil, custom_load_consumer_by_custom_id, consumer_id, true)
+      log_cache_hit("consumer_custom_id", consumer_cache_key)
+      consumer, err = kong.cache:get(consumer_cache_key, nil, custom_load_consumer_by_custom_id, consumer_cache_key, consumer_id, true)
   else
       local consumer_cache_key = kong.db.consumers:cache_key(consumer_id)
-      consumer, err = kong.cache:get(consumer_cache_key, nil, kong.client.load_consumer, consumer_id, true)
+      log_cache_hit("consumer_id", consumer_cache_key)
+      consumer, err = kong.cache:get(consumer_cache_key, nil, custom_load_consumer_by_id, consumer_cache_key, consumer_id, true)
   end
 
   if err then
@@ -463,8 +489,10 @@ function JwtKeycloakHandler:access(conf)
     if conf.anonymous then
       -- get anonymous user
       local consumer_cache_key = kong.db.consumers:cache_key(conf.anonymous)
+      log_cache_hit("anonymous_consumer", consumer_cache_key)
       local consumer, err      = kong.cache:get(consumer_cache_key, nil,
-                                                kong.client.load_consumer,
+                                                custom_load_anonymous_consumer,
+                                                consumer_cache_key,
                                                 conf.anonymous, true)
       if err then
         kong.log.err(err)
